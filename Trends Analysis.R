@@ -36,3 +36,34 @@ gtrends_lst %>%
     scale_color_tq() +
     labs(title = "Keyword Trends - US - Over Time")
 
+# 3.2 Trends by Geography ----
+gtrends_lst %>% 
+    pluck("interest_by_region") %>%
+    as_tibble()
+
+states_tbl <- map_data("state") %>%
+    as_tibble() %>%
+    mutate(region = str_to_title(region))
+states_tbl
+
+state_trends_tbl <- gtrends_lst %>%
+    pluck("interest_by_region") %>%
+    left_join(states_tbl, by = c("location" = "region")) %>%
+    as_tibble()
+
+
+state_trends_tbl %>%
+    
+    ggplot(aes(long, lat)) +
+    geom_polygon(aes(group = group, fill = hits)) +
+    coord_map("albers", at0 = 45.5, lat1 = 29.5) +
+    scale_fill_viridis_c() +
+    theme_tq() +
+    facet_wrap(~ keyword, nrow = 1) +
+    labs(title = "Keyword Trends - US")
+
+
+gtrends_lst %>% names()
+gtrends_lst %>% pluck("interest_by_dma") %>% as_tibble() %>% View()
+gtrends_lst %>% pluck("related_queries") %>% as_tibble() %>% View()
+
