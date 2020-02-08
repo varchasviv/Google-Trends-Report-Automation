@@ -1,0 +1,110 @@
+---
+title: "Google Trends Report"
+author: "Varchasvi Vedula"
+date: "`r lubridate::now()`"
+output:
+  pdf_document: default
+  html_document:
+    theme: flatly
+params:
+  search_terms: !r c("java","python")
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = FALSE,
+    message = FALSE,
+    warning = FALSE
+    )
+
+# Google Trends API
+library(gtrendsR)
+
+# Data Tools
+library(tidyverse)
+library(lubridate)
+library(tidyquant)
+
+# File System
+library(fs)
+```
+
+# Report Search Terms
+
+```{r}
+tibble("Search Terms" = params$search_terms) %>% knitr::kable()
+```
+
+```{r}
+gtrends_lst <- gtrendsR::gtrends(params$search_terms, time = "all")
+```
+
+
+# Trends Over Time
+
+```{r}
+gtrends_lst %>% 
+    pluck("interest_over_time") %>% 
+    mutate(hits = as.numeric(hits)) %>%
+    as_tibble() %>%
+    ggplot(aes(date, hits, color = keyword)) +
+    geom_line() +
+    geom_smooth(span = 0.3, se = FALSE) +
+    theme_tq() +
+    scale_color_tq() +
+    labs(title = "Keyword Trends - World - Over Time")
+```
+
+\newpage
+
+# Trends by Geography
+
+```{r, fig.height=3, FALSE}
+states_tbl <- map_data("world") %>%
+    as_tibble() %>%
+    mutate(region = str_to_title(region))
+
+state_trends_tbl <- gtrends_lst %>%
+    pluck("interest_by_region") %>%
+    left_join(states_tbl, by = c("location" = "region")) %>%
+    as_tibble()
+
+state_trends_tbl %>%
+    ggplot(aes(long, lat)) +
+    geom_polygon(aes(group = group, fill = hits)) +
+    coord_map("albers", at0 = 45.5, lat1 = 29.5) +
+    scale_fill_viridis_c() +
+    theme_tq() +
+    facet_wrap(~ keyword, nrow = 1) +
+    labs(title = "Keyword Trends - US")
+```
+
+# Top Related Searches
+
+```{r, fig.height=3}
+n_terms <- 10
+
+top_five_related_searches_tbl <- gtrends_lst %>%
+    pluck("related_queries") %>%
+    as_tibble() %>%
+    filter(related_queries == "top") %>%
+    mutate(interest = as.numeric(subject)) %>%
+    
+    select(keyword, value, interest) %>%
+    group_by(keyword) %>%
+    arrange(desc(interest)) %>%
+    slice(1:n_terms) %>%
+    ungroup() %>%
+    
+    mutate(value = as_factor(value) %>% fct_reorder(interest))
+
+top_five_related_searches_tbl %>%
+    ggplot(aes(value, interest, color = keyword)) +
+    geom_segment(aes(xend = value, yend = 0)) +
+    geom_point() +
+    coord_flip() +
+    facet_wrap(~ keyword, nrow = 1, scales = "free_y") +
+    theme_tq() +
+    scale_color_tq()
+```
+
