@@ -1,0 +1,194 @@
+---
+title: "Google Trends App"
+output: 
+    flexdashboard::flex_dashboard:
+    orientation: columns
+runtime: shiny
+---
+
+```{r global, include=FALSE}
+# Shiny
+library(shiny)
+library(flexdashboard)
+library(shinycssloaders)
+library(shinythemes)
+
+# Google Trends API
+library(gtrendsR)
+
+# Data scraping, handling, and visualizaion
+library(tidyverse)
+library(lubridate)
+library(tidyquant)
+library(plotly)
+library(rvest)
+
+# File System
+library(fs)
+
+# Set up defaults
+default_search_terms <- c("beyonce", "taylor swift")
+default_country <- "US"
+
+```
+
+Analysis {.sidebar}
+-----------------------------------------------------------------------
+
+This application uses the Google Trends to automate the process of analyzing Google Trends data and downloading PDF reports with analysis to device. This application can be used for comparative word research, Search Engine Optimization, and optimizing content marketing.
+
+Geographic visualizations are only available for the "United States - US" region.
+
+```{r}
+countries <- paste(read_html("https://laendercode.net/en/2-letter-list.html") %>% html_nodes("td+ td a") %>% html_text()," - ", read_html("https://laendercode.net/en/2-letter-list.html") %>% html_nodes(".margin-clear") %>% html_text())
+shiny::selectizeInput(inputId  = "search_terms", 
+                      choices  = c("beyonce", "taylor swift"),
+                      label    = "Search Terms", 
+                      multiple = TRUE,
+                      options = list(create=TRUE, placeholder = "select or add new options"))
+
+
+shiny::selectizeInput(inputId  = "country", 
+                      choices  = countries,
+                      label    = "Country of Analysis",
+                      multiple = TRUE,
+                      options = list(placeholder = "choose country", maxItems=1))
+
+actionButton(inputId = "submit_search", label = "Run Analysis")
+```
+
+```{r}
+rv <- reactiveValues()
+rv$gtrends_lst <- NULL
+rv$country <- NULL
+
+observeEvent(eventExpr = input$submit_search, 
+             {rv$country <- input$country
+             rv$gtrends_lst <- input$search_terms %>%
+                 gtrends(geo = str_extract(rv$country, "[A-Z]{2}"), time = "all")
+})
+```
+
+Column {.tabset .tabset-fade}
+-----------------------------------------------------------------------
+
+### Over Time
+
+```{r}
+output$time_plot <- renderPlotly({
+    
+    req(rv$gtrends_lst)
+    
+    g <- rv$gtrends_lst[["interest_over_time"]]%>% 
+        mutate(hits = as.numeric(hits)) %>%
+        as_tibble() %>%
+        ggplot(aes(date, hits, color = keyword)) +
+        geom_line() +
+        geom_smooth(span = 0.3, se = FALSE) +
+        theme_tq() +
+        scale_color_tq() +
+        labs(title = paste("Keyword Trends - ", rv$country, "- Over Time")) 
+    
+    ggplotly(g)
+}) 
+
+plotlyOutput("time_plot") 
+
+```   
+
+### Geographic
+
+```{r, error=FALSE, message=FALSE}
+cat("Message: Geopgraphic analysis visualization only available for US region")
+renderPlotly({
+
+    req(rv$gtrends_lst)
+
+    rv$gtrends_lst[["interest_by_region"]] %>%
+    as_tibble()
+
+    states_tbl <- map_data("state") %>%
+        as_tibble() %>%
+        mutate(region = str_to_title(region))
+    states_tbl
+
+    state_trends_tbl <- rv$gtrends_lst[["interest_by_region"]]%>%
+        left_join(states_tbl, by = c("location" = "region")) %>%
+        as_tibble()
+
+    g <- state_trends_tbl %>%
+        ggplot(aes(long, lat)) +
+        geom_polygon(aes(group = group, fill = hits)) +
+        coord_map("albers", at0 = 45.5, lat1 = 29.5) +
+        scale_fill_viridis_c() +
+        theme_tq() +
+        facet_wrap(~ keyword, ncol = 1) +
+        labs(title ="Keyword Trends - US")
+
+    ggplotly(g)
+
+})
+```
+
+### Top Related Terms
+
+```{r}
+renderPlotly({
+
+    req(rv$gtrends_lst)
+
+    top_n_related_searches_tbl <- rv$gtrends_lst[["related_queries"]] %>%
+        as_tibble() %>%
+        filter(related_queries == "top") %>%
+        mutate(interest = as.numeric(subject)) %>%
+
+        select(keyword, value, interest) %>%
+        group_by(keyword) %>%
+        arrange(desc(interest)) %>%
+        slice(1:10) %>%
+        ungroup() %>%
+
+        mutate(value = as_factor(value) %>% fct_reorder(interest))
+
+    g <- top_n_related_searches_tbl %>%
+        ggplot(aes(value, interest, color = keyword)) +
+        geom_segment(aes(xend = value, yend = 0)) +
+        geom_point() +
+        coord_flip() +
+        facet_wrap(~ keyword, ncol = 1, scales = "free_y") +
+        theme_tq() +
+        scale_color_tq()
+
+    ggplotly(g)
+
+})
+
+
+```
+
+### Download Report
+
+```{r}
+actionButton(inputId = "download", label = "Download Report")
+
+observeEvent(input$download, {
+
+    # 2.1 Report Parameters ----
+    search_terms <- input$search_terms
+
+    # Make Report
+    file_path <- now() %>%
+        str_replace_all("\\:", "T") %>%
+        str_replace(" ", "_") %>%
+        str_replace_all("-","") %>% 
+        str_c("_trends_report.pdf")
+
+    rmarkdown::render(
+        input         = "google_trends_report_template.Rmd",
+        output_format = "pdf_document",
+        output_file   = file_path,
+        output_dir    = "reports",
+        params        = list(search_terms = search_terms, country = str_extract(rv$country, "[A-Z]{2}"))
+    )
+})
+```
