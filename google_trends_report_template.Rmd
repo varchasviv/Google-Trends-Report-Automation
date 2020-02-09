@@ -8,7 +8,7 @@ output:
     theme: flatly
 params:
   search_terms: !r c("beyonce", "taylor swift")
-  country: "IN"
+  country: "US"
 ---
 
 ```{r setup, include=FALSE}
@@ -25,6 +25,7 @@ library(gtrendsR)
 library(tidyverse)
 library(lubridate)
 library(tidyquant)
+library(lemon)
 
 # File System
 library(fs)
@@ -32,7 +33,7 @@ library(fs)
 
 # Report Search Terms
 
-```{r}
+```{r, render = lemon_print}
 tibble("Search Terms" = params$search_terms)
 ```
 
