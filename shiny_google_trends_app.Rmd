@@ -35,7 +35,7 @@ default_country <- "US"
 Analysis {.sidebar}
 -----------------------------------------------------------------------
 
-This application uses the Google Trends to automate the process of analyzing Google Trends data and downloading PDF reports with analysis to device. This application can be used for comparative word research, Search Engine Optimization, and optimizing content marketing.
+This application uses the Google Trends to automate the process of analyzing Google Trends data and downloading PDF reports with analysis to device. This application can be used as a resource for comparative word research, Search Engine Optimization, and content marketing.
 
 Geographic visualizations are only available for the "United States - US" region.
 
