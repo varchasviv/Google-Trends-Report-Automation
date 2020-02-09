@@ -7,7 +7,8 @@ output:
   html_document:
     theme: flatly
 params:
-  search_terms: !r c("java","python")
+  search_terms: !r c("beyonce", "taylor swift")
+  country: "IN"
 ---
 
 ```{r setup, include=FALSE}
@@ -32,19 +33,18 @@ library(fs)
 # Report Search Terms
 
 ```{r}
-tibble("Search Terms" = params$search_terms) %>% knitr::kable()
+tibble("Search Terms" = params$search_terms)
 ```
 
 ```{r}
-gtrends_lst <- gtrendsR::gtrends(params$search_terms, time = "all")
+gtrends_lst <- gtrendsR::gtrends(params$search_terms, geo = params$country, time = "all")
 ```
 
 
 # Trends Over Time
 
 ```{r}
-gtrends_lst %>% 
-    pluck("interest_over_time") %>% 
+gtrends_lst[["interest_over_time"]] %>% 
     mutate(hits = as.numeric(hits)) %>%
     as_tibble() %>%
     ggplot(aes(date, hits, color = keyword)) +
@@ -52,7 +52,7 @@ gtrends_lst %>%
     geom_smooth(span = 0.3, se = FALSE) +
     theme_tq() +
     scale_color_tq() +
-    labs(title = "Keyword Trends - World - Over Time")
+    labs(title = paste("Keyword Trends - ", params$country ,"- Over Time"))
 ```
 
 \newpage
@@ -60,43 +60,43 @@ gtrends_lst %>%
 # Trends by Geography
 
 ```{r, fig.height=3, FALSE}
-states_tbl <- map_data("world") %>%
+
+if(params$country == "US"){
+  
+  states_tbl <- map_data("state") %>%
     as_tibble() %>%
     mutate(region = str_to_title(region))
 
-state_trends_tbl <- gtrends_lst %>%
-    pluck("interest_by_region") %>%
+  state_trends_tbl <- gtrends_lst[["interest_by_region"]] %>%
     left_join(states_tbl, by = c("location" = "region")) %>%
     as_tibble()
 
-state_trends_tbl %>%
+  state_trends_tbl %>%
     ggplot(aes(long, lat)) +
     geom_polygon(aes(group = group, fill = hits)) +
     coord_map("albers", at0 = 45.5, lat1 = 29.5) +
     scale_fill_viridis_c() +
     theme_tq() +
     facet_wrap(~ keyword, nrow = 1) +
-    labs(title = "Keyword Trends - US")
+    labs(title = paste("Keyword Trends - ", params$country))
+} else{
+  cat("Geographical analysis visualization only available for US region")
+}
 ```
 
 # Top Related Searches
 
 ```{r, fig.height=3}
-n_terms <- 10
-
-top_five_related_searches_tbl <- gtrends_lst %>%
-    pluck("related_queries") %>%
-    as_tibble() %>%
-    filter(related_queries == "top") %>%
-    mutate(interest = as.numeric(subject)) %>%
-    
-    select(keyword, value, interest) %>%
-    group_by(keyword) %>%
-    arrange(desc(interest)) %>%
-    slice(1:n_terms) %>%
-    ungroup() %>%
-    
-    mutate(value = as_factor(value) %>% fct_reorder(interest))
+top_five_related_searches_tbl <- gtrends_lst[["related_queries"]] %>%
+  as_tibble() %>%
+  filter(related_queries == "top") %>%
+  mutate(interest = as.numeric(subject)) %>%
+  select(keyword, value, interest) %>%
+  group_by(keyword) %>%
+  arrange(desc(interest)) %>%
+  slice(1:10) %>%
+  ungroup() %>% 
+  mutate(value = as_factor(value) %>% fct_reorder(interest))
 
 top_five_related_searches_tbl %>%
     ggplot(aes(value, interest, color = keyword)) +
