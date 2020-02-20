@@ -8,5 +8,5 @@ This application can be used as a resource for comparative word research, Search
 
 Download the files, open shiny_google_trends_app.Rmd in RStudio, and hit "Run Document".
 
-A selectively functioning version of the app has been deployed here:
+Work in progress: A selectively functioning version of the app has been deployed here:
 https://varchasvivedula.shinyapps.io/Google-Trends-Report-Automation/
