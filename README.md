@@ -10,3 +10,8 @@ Download the files, open shiny_google_trends_app.Rmd in RStudio, and hit "Run Do
 
 Work in progress: A selectively functioning version of the app has been deployed here:
 https://varchasvivedula.shinyapps.io/Google-Trends-Report-Automation/
+
+### Future Work
+
+- Optimizing the API data retrieval and visualization process for smoother user experience.
+- Adding more metrics in the visualizations
